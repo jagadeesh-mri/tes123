@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="8f598ad1-f70b-4613-a955-42dda936b878" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="jsonArrayTransformation" doc:id="af41e488-d6c7-4af0-a51a-de708ba777d1" >
+		<http:listener doc:name="Listener" doc:id="babdb11c-362e-47b9-bd94-ab06aaded742" config-ref="HTTP_Listener_config" path="/dataweave2" allowedMethods="POST"/>
+		<ee:transform doc:name="Transform Message" doc:id="8a8c0e38-9b60-4609-bcd1-4e78f93dc699" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload map {
+	flightOperator: upper($.airlineName),
+	cost: $.price,
+	takeOffDate: $.departureDate 
+		as Date {format:"yyyy/MM/dd"} 
+		as String {format:"dd MMM yyyy"},
+	"type": $.planeType replace "Bo" with "Boe",
+	fromAirport: $.origination,
+	code: lower($.flightCode),
+	emptySeats: $.availableSeats as Number,
+	toAirport: $.destination
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="simpleJsonTransformation" doc:id="7d350b5e-6673-42aa-a18d-d8776b411e72" >
+		<http:listener doc:name="Listener" doc:id="85b316c0-319b-437d-8cfe-4a4a3d552776" path="/dataweave" allowedMethods="POST" config-ref="HTTP_Listener_config"/>
+		<ee:transform doc:name="JSON To Java,JSON,XML" doc:id="02f3c325-9f8b-4deb-8cbf-85fa30f2e7ce" >
+			<ee:message >
+				<ee:set-payload resource="payloadExpressions.dwl" />
+				<ee:set-attributes ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	name: "value",
+	"content-type": "application/json"
+}]]></ee:set-attributes>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="java" ><![CDATA[%dw 2.0
+output application/java
+type MyDate = String {format:"yyyy-MM-dd"}
+---
+//2019-11-21
+/* hello */
+{
+	toAirport: payload.destination,
+	flightOperator: payload.airline,
+	fromAirport: "MUA",
+	dateOfTravel: now() as MyDate
+} as Object {class:"java.util.HashMap"}]]></ee:set-variable>
+				<ee:set-variable variableName="xml" ><![CDATA[%dw 2.0
+output application/xml
+type MyDate = String {format:"yyyy-MM-dd"}
+---
+flightSearch @(priceUnder: "25000", currency: "INR")  :{
+    toAirport: payload.destination,
+    flightOperator: payload.airline,
+    fromAirport: "MUA",
+    dateOfTravel: now() as MyDate
+}
+]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="fbb825df-e0b3-4363-879d-edfa4767f9e3" />
+	</flow>
+</mule>
